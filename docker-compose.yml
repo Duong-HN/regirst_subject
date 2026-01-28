@@ -1,0 +1,184 @@
+version: '3.8'
+
+services:
+  # ==================== DATABASE ====================
+  mysql:
+    image: mysql:8.0
+    container_name: course_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: course_registration
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./setup_database:/docker-entrypoint-initdb.d
+    networks:
+      - course_network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ==================== AUTH SERVICE INSTANCES ====================
+  auth_service_1:
+    build: .
+    container_name: auth_1
+    command: python -u auth_service.py
+    environment:
+      - SERVICE_PORT=9001
+      - DB_HOST=mysql
+    ports:
+      - "9011:9001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  auth_service_2:
+    build: .
+    container_name: auth_2
+    command: python -u auth_service.py
+    environment:
+      - SERVICE_PORT=9001
+      - DB_HOST=mysql
+    ports:
+      - "9012:9001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  # ==================== COURSE SERVICE INSTANCES ====================
+  course_service_1:
+    build: .
+    container_name: course_1
+    command: python -u course_service.py
+    environment:
+      - SERVICE_PORT=9002
+      - DB_HOST=mysql
+    ports:
+      - "9021:9002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  course_service_2:
+    build: .
+    container_name: course_2
+    command: python -u course_service.py
+    environment:
+      - SERVICE_PORT=9002
+      - DB_HOST=mysql
+    ports:
+      - "9022:9002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  # ==================== TRANSACTION SERVICE INSTANCES ====================
+  transaction_service_1:
+    build: .
+    container_name: transaction_1
+    command: python -u transaction_service.py
+    environment:
+      - SERVICE_PORT=9003
+      - DB_HOST=mysql
+    ports:
+      - "9031:9003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  transaction_service_2:
+    build: .
+    container_name: transaction_2
+    command: python -u transaction_service.py
+    environment:
+      - SERVICE_PORT=9003
+      - DB_HOST=mysql
+    ports:
+      - "9032:9003"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
+
+  # ==================== HAPROXY LOAD BALANCERS ====================
+  haproxy_auth:
+    image: haproxy:2.8-alpine
+    container_name: haproxy_auth
+    volumes:
+      - ./docker/haproxy_auth.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "9001:9001"
+      - "8401:8404" # Stats page
+    depends_on:
+      - auth_service_1
+      - auth_service_2
+    networks:
+      - course_network
+
+  haproxy_course:
+    image: haproxy:2.8-alpine
+    container_name: haproxy_course
+    volumes:
+      - ./docker/haproxy_course.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "9002:9002"
+      - "8402:8404" # Stats page
+    depends_on:
+      - course_service_1
+      - course_service_2
+    networks:
+      - course_network
+
+  haproxy_transaction:
+    image: haproxy:2.8-alpine
+    container_name: haproxy_transaction
+    volumes:
+      - ./docker/haproxy_transaction.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "9003:9003"
+      - "8403:8404" # Stats page
+    depends_on:
+      - transaction_service_1
+      - transaction_service_2
+    networks:
+      - course_network
+
+  # ==================== API GATEWAY ====================
+  api_gateway:
+    build: .
+    container_name: api_gateway
+    command: python -u api_gateway.py
+    ports:
+      - "8888:8888"
+    environment:
+      - AUTH_HOST=haproxy_auth
+      - COURSE_HOST=haproxy_course
+      - TRANSACTION_HOST=haproxy_transaction
+    depends_on:
+      - haproxy_auth
+      - haproxy_course
+      - haproxy_transaction
+    networks:
+      - course_network
+
+networks:
+  course_network:
+    driver: bridge
+
+volumes:
+  mysql_data:

@@ -1,7 +1,7 @@
 import socket
 import sys
 
-# --- CONFIGURATION ---
+# --- CẤU HÌNH ---
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 8888
 
@@ -12,7 +12,7 @@ class NetworkClient:
         self.sock = None
 
     def connect(self):
-        """Establish connection to server"""
+        """Thiết lập kết nối đến server"""
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.host, self.port))
@@ -25,7 +25,7 @@ class NetworkClient:
             return False
 
     def send_request(self, request):
-        """Send string request and wait for string response"""
+        """Gửi yêu cầu dạng chuỗi và chờ phản hồi dạng chuỗi"""
         if not self.sock:
             return "ERR|Not Connected"
         
