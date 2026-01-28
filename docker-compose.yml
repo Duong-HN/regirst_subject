@@ -22,6 +22,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # ==================== PHPMYADMIN (WEB DB VIEWER) ====================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - course_network
   # ==================== AUTH SERVICE INSTANCES ====================
   auth_service_1:
     build: .
